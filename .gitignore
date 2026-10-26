@@ -1,0 +1,21 @@
+node_modules/
+.next/
+out/
+*.tsbuildinfo
+next-env.d.ts
+.env
+.env.local
+.data/
+design-ref/
+/freebuff-sites-build/
+/.open-next/
+/.wrangler/
+
+# local wrangler secrets
+.dev.vars
+
+# local secret material for Sites
+.freebuff/secrets/
+
+# Freebuff thread state and logs (run.md lives in README.md)
+/.freebuff/
