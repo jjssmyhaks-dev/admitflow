@@ -3,6 +3,9 @@ import { z } from "zod";
 import { handleInquiry } from "@/lib/agent";
 import { ensureSeed } from "@/lib/seed";
 import { getRepo } from "@/lib/repo";
+import { webhookSecretOk } from "@/lib/authz";
+import { limitOr429 } from "@/lib/ratelimit";
+import { leadLimit } from "@/lib/limits";
 
 // Lead form webhook: POST { tenantId, name, phone, course?, city?, message?, secret }
 const Body = z.object({
@@ -17,8 +20,9 @@ const Body = z.object({
 });
 
 export async function POST(req: NextRequest) {
+  const limited = limitOr429("lead-webhook", req, 60, 60_000);
+  if (limited) return limited;
   await ensureSeed();
-  const expected = process.env.LEAD_WEBHOOK_SECRET || "change-me";
   const headerSecret = req.headers.get("x-webhook-secret") ?? undefined;
 
   const parsed = Body.safeParse(await req.json().catch(() => null));
@@ -26,7 +30,12 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: parsed.error.flatten() }, { status: 400 });
   }
   const { secret, ...payload } = parsed.data;
-  if ((secret ?? headerSecret) !== expected) {
+  const check = webhookSecretOk(secret ?? headerSecret, "LEAD_WEBHOOK_SECRET");
+  if (!check.configured) {
+    // Never fall back to a default value: an unset secret rejects instead.
+    return NextResponse.json({ error: "webhook secret not configured" }, { status: 503 });
+  }
+  if (!check.ok) {
     return NextResponse.json({ error: "invalid secret" }, { status: 401 });
   }
 
@@ -34,6 +43,17 @@ export async function POST(req: NextRequest) {
   const repo = await getRepo();
   if (!(await repo.getTenant(payload.tenantId))) {
     return NextResponse.json({ error: "unknown tenant" }, { status: 404 });
+  }
+
+  // Plan cap: only refuse when this phone would create a NEW lead.
+  const phoneDigits = payload.phone.replace(/\D/g, "");
+  const leads = await repo.listLeads(payload.tenantId);
+  const isNew = !leads.some((l) => l.phone.replace(/\D/g, "") === phoneDigits);
+  if (isNew && leads.length >= leadLimit()) {
+    return NextResponse.json(
+      { error: "lead limit reached for this institution" },
+      { status: 429, headers: { "Retry-After": "86400" } },
+    );
   }
 
   const pieces = [

@@ -34,6 +34,8 @@ export interface KnowledgeChunk {
   tenantId: string;
   content: string;
   topics: string[];
+  /** Optional semantic vector — present when embeddings are configured. */
+  embedding?: number[] | null;
 }
 
 export interface Lead {

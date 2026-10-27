@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { getRepo, uid } from "@/lib/repo";
+import { requireTenant } from "@/lib/authz";
 
 const SettingsSchema = z.object({
   tenantId: z.string().min(1),
@@ -24,6 +25,8 @@ const SettingsSchema = z.object({
 export async function POST(req: NextRequest) {
   const parsed = SettingsSchema.safeParse(await req.json().catch(() => null));
   if (!parsed.success) return NextResponse.json({ error: parsed.error.flatten() }, { status: 400 });
+  const auth = await requireTenant(parsed.data.tenantId, "manage");
+  if (!auth.ok) return auth.response;
   const repo = await getRepo();
   const tenant = await repo.getTenant(parsed.data.tenantId);
   if (!tenant) return NextResponse.json({ error: "tenant not found" }, { status: 404 });

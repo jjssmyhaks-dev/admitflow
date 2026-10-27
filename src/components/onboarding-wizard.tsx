@@ -2,7 +2,8 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import type { Tenant } from "@/lib/types";
+import type { Role, Tenant } from "@/lib/types";
+import { can } from "@/lib/roles";
 import { trackGoLiveApproved, trackSandboxMessageSent, trackSetupGuideOpened } from "@/lib/analytics";
 
 const STEPS = [
@@ -16,13 +17,15 @@ const STEPS = [
 
 interface Props {
   tenantId: string;
+  role: Role;
   tenant: Tenant | null;
   docCount: number;
   knowledgeTopics: string[];
   leadCount: number;
 }
 
-export function OnboardingWizard({ tenantId, tenant, docCount, knowledgeTopics, leadCount }: Props) {
+export function OnboardingWizard({ tenantId, role, tenant, docCount, knowledgeTopics, leadCount }: Props) {
+  const canManage = can(role, "manage");
   const router = useRouter();
   const [step, setStep] = useState(0);
   const [profile, setProfile] = useState({
@@ -133,10 +136,11 @@ export function OnboardingWizard({ tenantId, tenant, docCount, knowledgeTopics, 
             </div>
           </div>
           <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
-            <button className="tines-button tines-button-solid" onClick={saveProfile} disabled={saving}>
+            <button className="tines-button tines-button-solid" onClick={saveProfile} disabled={saving || !canManage}>
               {saving ? "Saving…" : "Save & continue"}
             </button>
             {saved && <span className="pill pill-ok">Saved</span>}
+            {!canManage && <span className="hint">Only admins and owners can edit the institution profile.</span>}
             <button className="tines-nav-control" onClick={() => setStep(1)}>Skip to knowledge →</button>
           </div>
         </div>

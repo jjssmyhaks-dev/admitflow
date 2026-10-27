@@ -2,6 +2,8 @@
 // storage); with Supabase env vars the Supabase adapter takes over; otherwise
 // a local JSON demo store (seeded) keeps every flow working.
 import { supabaseConfigured } from "@/lib/env";
+import { embeddingsConfigured, embedQuery } from "@/lib/embed";
+import { rankHybrid, retrievalTokens } from "@/lib/retrieval";
 import type {
   AgentSettings,
   AuditEvent,
@@ -15,12 +17,14 @@ import type {
 
 export interface Repo {
   getTenant(id: string): Promise<Tenant | null>;
+  listTenants(): Promise<Tenant[]>;
   upsertTenant(t: Tenant): Promise<Tenant>;
   listKnowledge(tenantId: string): Promise<KnowledgeDoc[]>;
   addKnowledge(doc: KnowledgeDoc, chunks: Omit<KnowledgeChunk, "id">[]): Promise<void>;
   /** Replaces a document and rewrites its chunks (async extraction results). */
   updateKnowledge(doc: KnowledgeDoc, chunks: Omit<KnowledgeChunk, "id">[]): Promise<void>;
   deleteKnowledge(tenantId: string, docId: string): Promise<void>;
+  listChunks(tenantId: string, docId: string, limit?: number): Promise<KnowledgeChunk[]>;
   searchChunks(tenantId: string, query: string, limit?: number): Promise<KnowledgeChunk[]>;
   listLeads(tenantId: string): Promise<Lead[]>;
   getLead(tenantId: string, id: string): Promise<Lead | null>;
@@ -141,6 +145,9 @@ class DemoRepo implements Repo {
   async getTenant(id: string) {
     return loadDB().tenants.find((t) => t.id === id) ?? null;
   }
+  async listTenants() {
+    return loadDB().tenants;
+  }
   async upsertTenant(t: Tenant) {
     return this.tx((db) => {
       const i = db.tenants.findIndex((x) => x.id === t.id);
@@ -173,11 +180,21 @@ class DemoRepo implements Repo {
       db.chunks = db.chunks.filter((c) => c.docId !== docId);
     });
   }
+  async listChunks(tenantId: string, docId: string, limit = 100) {
+    return loadDB()
+      .chunks.filter((c) => c.tenantId === tenantId && c.docId === docId)
+      .slice(0, limit);
+  }
   async searchChunks(tenantId: string, query: string, limit = 4) {
     const qTokens = tokenize(query);
     if (qTokens.length === 0) return [];
-    return loadDB()
-      .chunks.filter((c) => c.tenantId === tenantId)
+    const all = loadDB().chunks.filter((c) => c.tenantId === tenantId);
+    // Semantic pass when embeddings are on and the query vector is available.
+    if (embeddingsConfigured()) {
+      const qVec = await embedQuery(query);
+      if (qVec) return rankHybrid(retrievalTokens(query), qVec, all, limit);
+    }
+    return all
       .map((c) => {
         const text = tokenize(c.content);
         let score = 0;

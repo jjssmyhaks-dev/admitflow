@@ -32,7 +32,7 @@ export default async function NurturePage() {
         ))}
       </div>
 
-      <NurtureClient tenantId={session.orgId} initialDue={due} />
+      <NurtureClient tenantId={session.orgId} initialDue={due} role={session.role} />
     </>
   );
 }

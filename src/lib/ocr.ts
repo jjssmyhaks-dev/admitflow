@@ -18,6 +18,7 @@
 import { getRepo, uid } from "@/lib/repo";
 import { chunkText, extractText, fetchUrlText } from "@/lib/ingest";
 import { deleteRaw, getRaw } from "@/lib/rawstore";
+import { embedTexts } from "@/lib/embed";
 import type { KnowledgeDoc } from "@/lib/types";
 
 const DEFAULT_OCR_URL = "https://api.openai.com/v1/chat/completions";
@@ -157,6 +158,7 @@ async function markIngested(
   out: OcrRunSummary,
 ): Promise<void> {
   const chunks = chunkText(text);
+  const vecs = await embedTexts(chunks.map((c) => c.content));
   await repo.updateKnowledge(
     {
       ...doc,
@@ -165,7 +167,13 @@ async function markIngested(
       topics: [...new Set(chunks.flatMap((c) => c.topics))],
       updatedAt: now,
     },
-    chunks.map((c) => ({ docId: doc.id, tenantId: doc.tenantId, content: c.content, topics: c.topics })),
+    chunks.map((c, i) => ({
+      docId: doc.id,
+      tenantId: doc.tenantId,
+      content: c.content,
+      topics: c.topics,
+      embedding: vecs?.[i] ?? null,
+    })),
   );
   await repo.addAudit({
     id: uid(),

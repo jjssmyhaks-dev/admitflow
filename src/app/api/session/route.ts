@@ -2,8 +2,12 @@ import { NextRequest, NextResponse } from "next/server";
 import { cookies } from "next/headers";
 import { clerkConfigured } from "@/lib/env";
 import { DEMO_USERS, SESSION_COOKIE } from "@/lib/session";
+import { limitOr429 } from "@/lib/ratelimit";
 
 export async function POST(req: NextRequest) {
+  // Login brute-force brake: 10 attempts/min per IP.
+  const limited = limitOr429("login", req, 10, 60_000);
+  if (limited) return limited;
   if (clerkConfigured) {
     return NextResponse.json(
       { error: "Clerk is configured — use the Clerk sign-in form." },

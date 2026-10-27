@@ -19,3 +19,6 @@ design-ref/
 
 # Freebuff thread state and logs (run.md lives in README.md)
 /.freebuff/
+
+# local secrets (cron secret etc.)
+/.secrets/

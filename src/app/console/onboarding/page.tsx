@@ -23,6 +23,7 @@ export default async function OnboardingPage() {
       </div>
       <OnboardingWizard
         tenantId={session.orgId}
+        role={session.role}
         tenant={tenant}
         docCount={knowledge.length}
         knowledgeTopics={[...new Set(knowledge.flatMap((d) => d.topics))]}

@@ -42,7 +42,8 @@ create table if not exists knowledge_chunks (
   doc_id    text not null,
   tenant_id text not null,
   content   text not null,
-  topics    text not null default '[]'
+  topics    text not null default '[]',
+  embedding text                   -- JSON float array; set when embeddings are on
 );
 create index if not exists knowledge_chunks_tenant_idx on knowledge_chunks (tenant_id);
 

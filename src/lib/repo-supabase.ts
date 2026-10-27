@@ -13,6 +13,29 @@ import type {
   Tenant,
 } from "@/lib/types";
 import { defaultSettings, uid, type Repo } from "@/lib/repo";
+import { embeddingsConfigured, embedQuery } from "@/lib/embed";
+import { rankHybrid, retrievalTokens } from "@/lib/retrieval";
+
+/** pgvector accepts the JSON text form; only 1536-dim vectors (the column
+ *  width in 0001_init) can be stored, anything else is dropped to null. */
+function embedCol(v?: number[] | null): string | null {
+  return Array.isArray(v) && v.length === 1536 ? JSON.stringify(v) : null;
+}
+
+/** PostgREST returns vector columns as text or as an array depending on
+ *  version — accept both, plus already-parsed values. */
+function parseEmbed(v: unknown): number[] | null {
+  if (Array.isArray(v)) return v as number[];
+  if (typeof v === "string") {
+    try {
+      const p = JSON.parse(v);
+      return Array.isArray(p) ? p : null;
+    } catch {
+      return null;
+    }
+  }
+  return null;
+}
 
 function client() {
   return createClient(
@@ -41,6 +64,11 @@ export class SupabaseRepo implements Repo {
   async getTenant(id: string): Promise<Tenant | null> {
     const { data } = await this.sb.from("tenants").select("*").eq("id", id).maybeSingle();
     return (data as Tenant) ?? null;
+  }
+
+  async listTenants(): Promise<Tenant[]> {
+    const { data } = await this.sb.from("tenants").select("*");
+    return (data as Tenant[]) ?? [];
   }
 
   async upsertTenant(t: Tenant): Promise<Tenant> {
@@ -79,6 +107,7 @@ export class SupabaseRepo implements Repo {
           tenant_id: c.tenantId,
           content: c.content,
           topics: c.topics,
+          embedding: embedCol(c.embedding),
         })),
       );
       if (ce) throw ce;
@@ -110,6 +139,7 @@ export class SupabaseRepo implements Repo {
           tenant_id: c.tenantId,
           content: c.content,
           topics: c.topics,
+          embedding: embedCol(c.embedding),
         })),
       );
       if (ce) throw ce;
@@ -121,9 +151,61 @@ export class SupabaseRepo implements Repo {
     await this.sb.from("knowledge_docs").delete().eq("id", docId).eq("tenant_id", tenantId);
   }
 
+  async listChunks(tenantId: string, docId: string, limit = 100): Promise<KnowledgeChunk[]> {
+    const { data } = await this.sb
+      .from("knowledge_chunks")
+      .select("id, doc_id, tenant_id, content, topics")
+      .eq("tenant_id", tenantId)
+      .eq("doc_id", docId)
+      .limit(limit);
+    const rows = (data ?? []) as {
+      id: string;
+      doc_id: string;
+      tenant_id: string;
+      content: string;
+      topics: string[] | null;
+    }[];
+    return rows.map((r) => ({
+      id: r.id,
+      docId: r.doc_id,
+      tenantId: r.tenant_id,
+      content: r.content,
+      topics: r.topics ?? [],
+    }));
+  }
+
   async searchChunks(tenantId: string, query: string, limit = 4): Promise<KnowledgeChunk[]> {
     const terms = tokenize(query).slice(0, 8);
     if (!terms.length) return [];
+
+    // Semantic pass: vectors + keyword blended in JS (see lib/retrieval).
+    if (embeddingsConfigured()) {
+      const qVec = await embedQuery(query);
+      if (qVec) {
+        const { data } = await this.sb
+          .from("knowledge_chunks")
+          .select("id, doc_id, tenant_id, content, topics, embedding")
+          .eq("tenant_id", tenantId)
+          .limit(800);
+        const candidates = ((data ?? []) as {
+          id: string;
+          doc_id: string;
+          tenant_id: string;
+          content: string;
+          topics: string[] | null;
+          embedding?: unknown;
+        }[]).map((r) => ({
+          id: r.id,
+          docId: r.doc_id,
+          tenantId: r.tenant_id,
+          content: r.content,
+          topics: r.topics ?? [],
+          embedding: parseEmbed(r.embedding),
+        }));
+        return rankHybrid(retrievalTokens(query), qVec, candidates, limit);
+      }
+    }
+
     const or = terms.map((t) => `content.ilike.%${t}%`).join(",");
     const { data } = await this.sb
       .from("knowledge_chunks")

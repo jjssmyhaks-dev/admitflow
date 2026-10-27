@@ -368,6 +368,12 @@ export async function handleInquiry(input: ChatInput): Promise<ChatResult> {
       sources: [], conversationId: conv.id,
     });
   }
+  // First time the lead crosses to hot: alert the counselors (audit always,
+  // Knock/email when configured). Never blocks the conversation.
+  if (scored.tier === "hot" && base.tier !== "hot") {
+    const { notifyHotLead } = await import("@/lib/notify");
+    await notifyHotLead(input.tenantId, lead, conv.id);
+  }
 
   return {
     conversationId: conv.id,

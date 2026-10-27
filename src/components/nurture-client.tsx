@@ -2,8 +2,11 @@
 
 import { useState } from "react";
 import type { DueFollowup } from "@/lib/nurture";
+import type { Role } from "@/lib/types";
+import { can } from "@/lib/roles";
 
-export function NurtureClient({ tenantId, initialDue }: { tenantId: string; initialDue: DueFollowup[] }) {
+export function NurtureClient({ tenantId, initialDue, role }: { tenantId: string; initialDue: DueFollowup[]; role: Role }) {
+  const canRun = can(role, "write");
   const [due, setDue] = useState(initialDue);
   const [busy, setBusy] = useState(false);
   const [ran, setRan] = useState<number | null>(null);
@@ -17,7 +20,7 @@ export function NurtureClient({ tenantId, initialDue }: { tenantId: string; init
         body: JSON.stringify({ tenantId }),
       });
       const data = await res.json();
-      setRan(data.due ?? 0);
+      setRan(data.due ?? data.results?.[tenantId]?.due ?? 0);
       setDue([]);
     } finally {
       setBusy(false);
@@ -35,7 +38,7 @@ export function NurtureClient({ tenantId, initialDue }: { tenantId: string; init
               : "Each run logs the send to the audit log; delivery goes through the WhatsApp BSP."}
           </p>
         </div>
-        <button className="tines-button tines-button-solid" onClick={run} disabled={busy}>
+        <button className="tines-button tines-button-solid" onClick={run} disabled={busy || !canRun}>
           {busy ? "Running…" : "Run nurture now"}
         </button>
       </div>

@@ -2,6 +2,7 @@ import { requireSession } from "@/lib/session";
 import { ensureSeed } from "@/lib/seed";
 import { getRepo } from "@/lib/repo";
 import { fmtDateTime } from "@/lib/format";
+import { can } from "@/lib/roles";
 
 const ACTOR_STYLE: Record<string, string> = {
   ai: "pill-warm",
@@ -23,6 +24,15 @@ export default async function AuditPage() {
           <h1>Audit log</h1>
           <div className="sub">Every AI message, guardrail hit, handoff, and the sources used (PRD §6)</div>
         </div>
+        {can(session.role, "manage") && (
+          <a
+            className="tines-button tines-button-outline"
+            href={`/api/export/tenant?tenant=${session.orgId}`}
+            title="Download every record for this institution as JSON"
+          >
+            Export backup
+          </a>
+        )}
       </div>
 
       <div className="table-wrap">

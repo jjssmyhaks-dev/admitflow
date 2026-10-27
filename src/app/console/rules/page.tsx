@@ -17,7 +17,7 @@ export default async function RulesPage() {
           <div className="sub">Tone, working hours, forbidden topics, escalation, nurture sequences</div>
         </div>
       </div>
-      <RulesClient initial={settings} />
+      <RulesClient initial={settings} role={session.role} />
     </>
   );
 }

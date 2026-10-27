@@ -12,6 +12,8 @@ import type {
   Tenant,
 } from "@/lib/types";
 import { defaultSettings, uid, type Repo } from "@/lib/repo";
+import { embeddingsConfigured, embedQuery } from "@/lib/embed";
+import { rankHybrid, retrievalTokens } from "@/lib/retrieval";
 
 export interface D1Statement {
   bind(...values: unknown[]): D1Statement;
@@ -61,7 +63,8 @@ const SCHEMA: string[] = [
      doc_id text not null,
      tenant_id text not null,
      content text not null,
-     topics text not null default '[]'
+     topics text not null default '[]',
+     embedding text
    )`,
   `create index if not exists knowledge_chunks_tenant_idx on knowledge_chunks (tenant_id)`,
   `create table if not exists leads (
@@ -186,6 +189,11 @@ export class D1Repo implements Repo {
     return row ? this.mapTenant(row) : null;
   }
 
+  async listTenants(): Promise<Tenant[]> {
+    const rs = await this.db.prepare("select * from tenants").all();
+    return (rs.results as Record<string, unknown>[]).map((row) => this.mapTenant(row));
+  }
+
   async upsertTenant(t: Tenant): Promise<Tenant> {
     await this.db
       .prepare(
@@ -250,9 +258,16 @@ export class D1Repo implements Repo {
       ...chunks.map((c) =>
         this.db
           .prepare(
-            "insert into knowledge_chunks (id, doc_id, tenant_id, content, topics) values (?, ?, ?, ?, ?)",
+            "insert into knowledge_chunks (id, doc_id, tenant_id, content, topics, embedding) values (?, ?, ?, ?, ?, ?)",
           )
-          .bind(uid(), c.docId, c.tenantId, c.content, toJson(c.topics ?? [])),
+          .bind(
+            uid(),
+            c.docId,
+            c.tenantId,
+            c.content,
+            toJson(c.topics ?? []),
+            c.embedding?.length ? JSON.stringify(c.embedding) : null,
+          ),
       ),
     ];
     await this.db.batch(stmts);
@@ -272,9 +287,16 @@ export class D1Repo implements Repo {
       ...chunks.map((c) =>
         this.db
           .prepare(
-            "insert into knowledge_chunks (id, doc_id, tenant_id, content, topics) values (?, ?, ?, ?, ?)",
+            "insert into knowledge_chunks (id, doc_id, tenant_id, content, topics, embedding) values (?, ?, ?, ?, ?, ?)",
           )
-          .bind(uid(), c.docId, c.tenantId, c.content, toJson(c.topics ?? [])),
+          .bind(
+            uid(),
+            c.docId,
+            c.tenantId,
+            c.content,
+            toJson(c.topics ?? []),
+            c.embedding?.length ? JSON.stringify(c.embedding) : null,
+          ),
       ),
     ];
     await this.db.batch(stmts);
@@ -291,9 +313,53 @@ export class D1Repo implements Repo {
     ]);
   }
 
+  async listChunks(tenantId: string, docId: string, limit = 100): Promise<KnowledgeChunk[]> {
+    const { results } = await this.db
+      .prepare(
+        `select id, doc_id, tenant_id, content, topics from knowledge_chunks
+         where tenant_id = ? and doc_id = ? order by rowid limit ?`,
+      )
+      .bind(tenantId, docId, limit)
+      .all();
+    return (results as Record<string, unknown>[]).map((r) => ({
+      id: str(r.id),
+      docId: str(r.doc_id),
+      tenantId: str(r.tenant_id),
+      content: str(r.content),
+      topics: fromJson<string[]>(r.topics, []),
+    }));
+  }
+
   async searchChunks(tenantId: string, query: string, limit = 4): Promise<KnowledgeChunk[]> {
     const terms = tokenize(query).slice(0, 8);
     if (!terms.length) return [];
+
+    // Semantic pass: vectors + keyword blended in JS (see lib/retrieval).
+    if (embeddingsConfigured()) {
+      const qVec = await embedQuery(query);
+      if (qVec) {
+        const { results } = await this.db
+          .prepare(
+            `select id, doc_id, tenant_id, content, topics, embedding
+             from knowledge_chunks where tenant_id = ? limit 800`,
+          )
+          .bind(tenantId)
+          .all();
+        const candidates = (results as Record<string, unknown>[]).map((r) => {
+          const embedding = fromJson<number[]>(r.embedding, []);
+          return {
+            id: str(r.id),
+            docId: str(r.doc_id),
+            tenantId: str(r.tenant_id),
+            content: str(r.content),
+            topics: fromJson<string[]>(r.topics, []),
+            embedding: embedding.length ? embedding : null,
+          };
+        });
+        return rankHybrid(retrievalTokens(query), qVec, candidates, limit);
+      }
+    }
+
     const where = terms.map(() => "content like ?").join(" or ");
     const { results } = await this.db
       .prepare(
@@ -594,7 +660,16 @@ let schemaReady: Promise<void> | null = null;
 
 async function ensureSchema(db: D1Database): Promise<void> {
   schemaReady ??= db.batch(SCHEMA.map((sql) => db.prepare(sql))).then(
-    () => undefined,
+    async () => {
+      // v2: embeddings column for databases created before semantic search.
+      // Fresh databases get it from CREATE TABLE; existing ones raise
+      // "duplicate column" here on every boot — harmless, ignored.
+      try {
+        await db.prepare("alter table knowledge_chunks add column embedding text").run();
+      } catch {
+        /* already migrated */
+      }
+    },
     (err) => {
       schemaReady = null;
       throw err;

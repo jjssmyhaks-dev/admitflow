@@ -1,10 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getRepo } from "@/lib/repo";
 import { leadsToCsv } from "@/lib/nurture";
+import { requireTenant } from "@/lib/authz";
 
 export async function GET(req: NextRequest) {
-  const tenantId = req.nextUrl.searchParams.get("tenant");
-  if (!tenantId) return NextResponse.json({ error: "tenant required" }, { status: 400 });
+  const auth = await requireTenant(req.nextUrl.searchParams.get("tenant"), "read");
+  if (!auth.ok) return auth.response;
+  const tenantId = auth.tenantId;
   const repo = await getRepo();
   const leads = await repo.listLeads(tenantId);
   const csv = leadsToCsv(leads);

@@ -5,6 +5,7 @@
 // so the same code runs on Node and on the Cloudflare Workers runtime.
 import { getRepo, uid } from "@/lib/repo";
 import { putRaw } from "@/lib/rawstore";
+import { embedTexts } from "@/lib/embed";
 import type { KnowledgeDoc } from "@/lib/types";
 
 export type Extracted = { text: string; ok: boolean };
@@ -263,21 +264,34 @@ export async function ingest(
   doc.chunkCount = chunks.length;
   doc.topics = [...new Set(chunks.flatMap((c) => c.topics))];
 
-  // Nothing extracted: park what the async worker needs to retry it — the
-  // original file bytes, or the URL for a page import. With nowhere to park it
-  // the document is terminal, so it must not sit in `processing` forever.
-  if (!extracted) {
-    const parked = input.file
-      ? await putRaw(input.tenantId, doc.id, input.file.bytes)
-      : input.url
-        ? await putRaw(input.tenantId, doc.id, new TextEncoder().encode(input.url))
-        : false;
-    if (!parked) doc.status = "failed";
+  // Park the original whenever there is one (file or URL) — the async OCR
+  // worker and the re-index action both need it later. With nowhere to park
+  // an unextractable document it is terminal, so it must not sit in
+  // `processing` forever.
+  const toPark = input.file
+    ? input.file.bytes
+    : input.url
+      ? new TextEncoder().encode(input.url)
+      : null;
+  if (toPark) {
+    const parked = await putRaw(input.tenantId, doc.id, toPark);
+    if (!parked && !extracted) doc.status = "failed";
+  } else if (!extracted) {
+    doc.status = "failed";
   }
+
+  // Semantic vectors (optional): null everywhere when embeddings are off.
+  const vecs = extracted ? await embedTexts(chunks.map((c) => c.content)) : null;
 
   await repo.addKnowledge(
     doc,
-    chunks.map((c) => ({ docId: doc.id, tenantId: input.tenantId, content: c.content, topics: c.topics })),
+    chunks.map((c, i) => ({
+      docId: doc.id,
+      tenantId: input.tenantId,
+      content: c.content,
+      topics: c.topics,
+      embedding: vecs?.[i] ?? null,
+    })),
   );
   await repo.addAudit({
     id: uid(),

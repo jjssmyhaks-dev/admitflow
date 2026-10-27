@@ -3,6 +3,7 @@ import { z } from "zod";
 import { handleInquiry } from "@/lib/agent";
 import { ensureSeed } from "@/lib/seed";
 import { getRepo } from "@/lib/repo";
+import { limitOr429 } from "@/lib/ratelimit";
 
 // The website widget runs on the customer's domain — allow cross-origin POSTs.
 const CORS_HEADERS = {
@@ -24,6 +25,12 @@ const Body = z.object({
 });
 
 export async function POST(req: NextRequest) {
+  // 30 messages/min per caller — human chat pace, burst protection.
+  const limited = limitOr429("chat", req, 30, 60_000);
+  if (limited) {
+    for (const [k, v] of Object.entries(CORS_HEADERS)) limited.headers.set(k, v);
+    return limited;
+  }
   await ensureSeed();
   const parsed = Body.safeParse(await req.json().catch(() => null));
   if (!parsed.success) {

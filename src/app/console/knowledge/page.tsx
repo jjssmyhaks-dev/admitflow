@@ -37,6 +37,7 @@ export default async function KnowledgePage() {
 
       <KnowledgeClient
         tenantId={session.orgId}
+        role={session.role}
         initialDocs={docs}
         topics={KNOWLEDGE_TOPICS}
         covered={[...covered]}

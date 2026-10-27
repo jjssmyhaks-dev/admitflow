@@ -40,8 +40,12 @@ Key groups (full list in [.env.example](.env.example)):
 | Database | `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY` | Demo JSON store (or D1 on Workers) |
 | LLM | `LLM_API_KEY`, `LLM_MODEL` | Deterministic grounded template engine (still cites sources) |
 | OCR | `OCR_API_KEY`, `OCR_API_URL`, `OCR_MODEL` | Unextractable documents end as `failed` instead of being retried |
-| WhatsApp | `WHATSAPP_ACCESS_TOKEN`, `WHATSAPP_PHONE_NUMBER_ID`, `WHATSAPP_TEMPLATE_NAME` | Follow-ups are recorded in the audit log, not sent |
-| Webhooks | `LEAD_WEBHOOK_SECRET`, `OCR_RUN_SECRET` | Defaults to `change-me` — set it in production |
+| WhatsApp (out) | `WHATSAPP_ACCESS_TOKEN`, `WHATSAPP_PHONE_NUMBER_ID`, `WHATSAPP_TEMPLATE_NAME` | Follow-ups are recorded in the audit log, not sent |
+| WhatsApp (in) | `WHATSAPP_APP_SECRET`, `WHATSAPP_VERIFY_TOKEN` | Inbound webhook answers 503 — no default secret |
+| Webhooks / scheduler | `LEAD_WEBHOOK_SECRET`, `CRON_SECRET`, `OCR_RUN_SECRET` | Those endpoints refuse requests (there is no default secret anymore) |
+| LLM embeddings | `EMBED_MODEL`, `LLM_BASE_URL` (alongside `LLM_API_KEY`) | Keyword-only retrieval — behaviour identical to before |
+| Hot-lead alerts | `KNOCK_API_KEY`, `KNOCK_WORKFLOW_KEY`, `ALERT_RECIPIENT_IDS` | Alerts are recorded in the audit log only |
+| Plan caps | `KNOWLEDGE_DOC_LIMIT`, `LEAD_LIMIT` | Defaults: 100 documents, 10 000 leads per tenant |
 | Analytics | `NEXT_PUBLIC_POSTHOG_PROJECT_TOKEN`, `NEXT_PUBLIC_POSTHOG_HOST` | Analytics stay off |
 
 Local development uses the OpenNext/wrangler proxy
@@ -75,6 +79,38 @@ Tenant isolation is the same in all three: every query is scoped to the Clerk
 organization id (`tenantId`), unknown tenants get `404` on public routes, and a
 guessed id can never create orphan data.
 
+---
+
+## Authorization, roles & rate limits
+
+Every non-public API route resolves its tenant **from the caller's session**,
+never from client input alone ([src/lib/authz.ts](src/lib/authz.ts)):
+
+1. no session → `401`;
+2. a requested tenant that differs from the session's organization → `403`
+   (cross-tenant attempt);
+3. the caller's role must clear the route's permission tier:
+
+| Tier | Roles | Covers |
+| --- | --- | --- |
+| `read` | viewer, counselor, admin, owner | lists, previews, CSV export |
+| `write` | counselor, admin, owner | inbox replies/takeover/outcomes, knowledge ingest & re-index, lead import, nurture run |
+| `manage` | admin, owner | agent rules, institution profile, knowledge delete, full backup, OCR run |
+
+The console mirrors these tiers ([src/lib/roles.ts](src/lib/roles.ts)) —
+viewers see read-only screens, counselors cannot change agent rules.
+Machine endpoints (lead webhook, cron, OCR) authenticate with shared secrets
+instead: `x-cron-secret: CRON_SECRET` or `x-webhook-secret` — and if no secret
+env is set the endpoint **rejects** rather than falling back to a default.
+
+Public endpoints are rate-limited per IP
+([src/lib/ratelimit.ts](src/lib/ratelimit.ts), in-isolate fixed windows):
+chat 30/min, lead webhook 60/min, login 10/min, OCR trigger 10/min,
+WhatsApp webhook 120/min — all answer `429` with `Retry-After`. Plan caps
+([src/lib/limits.ts](src/lib/limits.ts)) bound documents per tenant
+(`KNOWLEDGE_DOC_LIMIT`, default 100) and leads (`LEAD_LIMIT`, default 10 000)
+on the bulk paths (ingest, import, lead webhook).
+
 > Switching backends moves no data — they are separate stores. Export leads as
 > CSV from `/api/export/leads` if you need to carry records across.
 
@@ -96,12 +132,15 @@ Scanned PDFs and photographs produce no text. Those documents are parked as
 the async worker finishes them:
 
 ```bash
-# trigger it (scheduler, cron, or curl); secret header matches LEAD_WEBHOOK_SECRET
+# trigger it (scheduler, cron, or curl). No tenant id ⇒ every tenant.
+# Auth: x-cron-secret: CRON_SECRET  |  x-webhook-secret: OCR_RUN_SECRET
+#       (or LEAD_WEBHOOK_SECRET)  |  a signed-in admin session
 curl -X POST https://<your-site>/api/knowledge/ocr \
-  -H 'content-type: application/json' \
-  -H 'x-webhook-secret: <secret>' \
-  -d '{"tenantId":"org_greenfield"}'
+  -H 'x-cron-secret: <CRON_SECRET>'
 ```
+
+Both cron endpoints (`/api/knowledge/ocr` and `/api/nurture/run`) work the
+same way — see **Background jobs** below.
 
 The ingest route also schedules a run via `after()` right after a document that
 needs it, so an upload normally completes on its own. The worker
@@ -110,8 +149,9 @@ needs it, so an upload normally completes on its own. The worker
 - **URL import** → re-fetches the page;
 - **file** → re-runs the local extractor (catches documents uploaded before an
   extractor fix), then sends the bytes to the OCR provider;
-- **success** → chunks, flips the document to `ingested`, re-tags topics,
-  writes a `knowledge.ocr` audit event and drops the parked upload;
+- **success** → chunks (+ embeddings when configured), flips the document to
+  `ingested`, re-tags topics and writes a `knowledge.ocr` audit event (the
+  parked upload is kept as the source for **Re-index**);
 - **no provider configured / provider rejects it** → `failed` with the reason in
   the audit log (`knowledge.failed`) — nothing sits in `processing` forever;
 - **transient failure** (network, provider 5xx/429) → stays `processing` so the
@@ -142,16 +182,117 @@ Cloud API** (`graph.facebook.com/v26.0/<phone_number_id>/messages`) with plain
   `nurture.failed` (with the provider error).
 - Opted-out leads are skipped before any send.
 
-Trigger it the same way as before:
+Trigger it the same way as before (now authenticated):
 
 ```bash
 curl -X POST http://localhost:<port>/api/nurture/run \
-  -H 'content-type: application/json' -d '{"tenantId":"org_greenfield"}'
+  -H 'content-type: application/json' \
+  -H 'x-cron-secret: <CRON_SECRET>' \
+  -d '{"tenantId":"org_greenfield"}'   # omit tenantId as a scheduler ⇒ every tenant
 ```
 
-**Not implemented yet**: the inbound webhook (replies, delivery receipts,
-template registration) — Meta needs a public HTTPS endpoint for it, so replies
-currently arrive through `/api/chat` instead.
+### Inbound messages (webhook)
+
+[src/app/api/webhooks/whatsapp/route.ts](src/app/api/webhooks/whatsapp/route.ts)
+implements Meta's webhook end to end:
+
+- **GET** — verification challenge: echoes `hub.challenge` when
+  `hub.verify_token` matches `WHATSAPP_VERIFY_TOKEN`.
+- **POST** — signature-checked (`X-Hub-Signature-256` over the raw body with
+  `WHATSAPP_APP_SECRET`, timing-safe), then per message:
+  - text / quick-reply / interactive-button replies run through the agent and
+    its reply is sent back on the 24-hour service window the message just
+    opened;
+  - `STOP` / `unsubscribe` / `opt out` → lead opted out (+ confirmation
+    reply); `START` / `subscribe` → opted back in; messages from opted-out
+    numbers are ignored — same guardrail as the chat;
+  - `sent` / `delivered` / `read` / `failed` status callbacks are recorded in
+    the audit log against the lead's conversation (`whatsapp.*`).
+- The tenant travels in the callback URL — there is no tenant input in the
+  signed payload.
+
+Register it in the Meta App Dashboard → WhatsApp → Configuration → Webhook:
+
+```
+Callback URL:  https://<your-site>/api/webhooks/whatsapp?tenant=<orgId>
+Verify token:  <WHATSAPP_VERIFY_TOKEN>
+Webhook fields: messages, statuses
+```
+
+Template registration/changes still happen in Meta's dashboard (App
+Dashboard → WhatsApp → Message templates) — Meta approves templates out of
+band, there is no API for submitting them.
+
+---
+
+## Background jobs (scheduler)
+
+`/api/nurture/run` and `/api/knowledge/ocr` are plain HTTP cron endpoints:
+authenticate with `x-cron-secret: CRON_SECRET` (or an admin session), omit the
+tenant to sweep **every** tenant. The repo ships
+[.github/workflows/scheduled-jobs.yml](.github/workflows/scheduled-jobs.yml)
+which calls both every 15 minutes. One-time setup:
+
+1. `Settings → Secrets and variables → Actions` in the GitHub repo:
+   - secret `CRON_SECRET` — same value as the Sites secret (generate one with
+     `node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"`;
+     your local copy lives in `.secrets/cron-secret.txt`, which is gitignored),
+   - variable `APP_URL` — the production origin.
+2. Sites → Secrets: set `CRON_SECRET` there too.
+
+Any other scheduler (GitHub cron, Cloudflare Cron Triggers, a VPS crontab,
+cron-job.org) works the same — it only needs to send the header. Uploads also
+schedule their own OCR pass via `after()`, so the cron mainly catches
+anything left by a crashed request and drives nurture follow-ups.
+
+---
+
+## Hot-lead alerts
+
+When a lead **first** crosses to `hot`, [src/lib/notify.ts](src/lib/notify.ts)
+always writes a `lead.hot_alert` audit event, and — when `KNOCK_API_KEY` is
+set — triggers the Knock workflow `hot-lead-alert`
+(`KNOCK_WORKFLOW_KEY`) with the lead's name, phone, score, course, city and
+conversation id. Delivery (email/in-app) goes through whatever provider you
+connect inside the [Knock](https://knock.app) dashboard; recipients default to
+the tenant id and can be overridden with `ALERT_RECIPIENT_IDS`. Alert failures
+are audited (`notify.failed`) and never break the conversation.
+
+---
+
+## Semantic retrieval (optional)
+
+With `LLM_API_KEY` set, ingestion also stores an embedding per chunk
+(`EMBED_MODEL`, default `text-embedding-3-small`; set it to `off` to disable)
+and every search blends cosine similarity with the keyword score
+([src/lib/embed.ts](src/lib/embed.ts), [src/lib/retrieval.ts](src/lib/retrieval.ts)):
+a chunk passes on a keyword hit **or** a strong semantic match, so answers
+still prefer exact term hits. Storage: D1 gets an `embedding text` column
+(added automatically by `ensureSchema`, also in
+[sites/d1-schema.sql](sites/d1-schema.sql)); Supabase already declares
+`vector(1536)` in `0001_init.sql`; the demo store keeps vectors in its JSON
+file. Any embeddings failure (no key, provider without `/embeddings`, timeout)
+falls back to keyword search for that query — behaviour with the feature off
+is byte-for-byte the old behaviour.
+
+Chunks ingested **before** embeddings were enabled have no vector; they keep
+working through keyword search and pick up vectors on **Re-index** (or
+re-upload).
+
+---
+
+## Data in / data out
+
+- **CSV import** — Leads page → *Import CSV* (`POST /api/import/leads`,
+  `write` tier). Columns: `name`, `phone` (required), `email`, `city`,
+  `course`, `message`. Rows run through the same agent pipeline as live
+  leads: phone de-dupe, slot capture, scoring, conversation backing. Capped at
+  500 rows per file and at `LEAD_LIMIT` overall.
+- **CSV export** — Leads page → *Export CSV* (`/api/export/leads`, `read`).
+- **Full backup** — Audit log page → *Export backup*
+  (`/api/export/tenant`, `manage`): one JSON file with the tenant profile,
+  settings, documents + chunks, leads, conversations, messages and the audit
+  trail (`admitflow.backup.v1`).
 
 ---
 
@@ -192,7 +333,11 @@ Production is a Cloudflare Worker built by OpenNext.
 3. **Secrets** — set them from the Sites panel (never in the repo):
    `CLERK_SECRET_KEY`, `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY`, the Supabase keys if
    you use that backend, `LLM_API_KEY`, `OCR_API_KEY`, `WHATSAPP_ACCESS_TOKEN`,
-   `LEAD_WEBHOOK_SECRET`. Deploy once before setting secrets.
+   `LEAD_WEBHOOK_SECRET` (required — the lead webhook refuses without it),
+   `CRON_SECRET` (required for the GitHub Actions scheduler), and for inbound
+   WhatsApp `WHATSAPP_APP_SECRET` + `WHATSAPP_VERIFY_TOKEN`. Optional:
+   `KNOCK_API_KEY` for hot-lead alerts, `EMBED_MODEL` for semantic retrieval.
+   Deploy once before setting secrets.
 4. **Deploy & publish** — `sites_deploy` with the manifest returns an operation
    receipt; a `succeeded` receipt means the upload finished, **not** that the
    environment is live. Publication is explicit: check with `sites_inspect`
@@ -212,29 +357,45 @@ keeps the code, data, secrets and URL — it just stops serving.
 ```
 src/
   app/                     marketing pages, console, sign-in
-    api/chat               public inquiry endpoint (CORS, tenant-scoped)
-    api/webhook/lead       lead-form webhook (shared secret)
-    api/knowledge          upload / list / delete  + ocr/ (async worker trigger)
+    api/chat               public inquiry endpoint (CORS, tenant-scoped, rate-limited)
+    api/webhook/lead       lead-form webhook (shared secret, rate-limited)
+    api/webhooks/whatsapp  inbound Meta webhook (verify, replies, STOP, receipts)
+    api/knowledge          upload / list / preview / delete + reindex/ + ocr/
+    api/import/leads       CSV lead import
+    api/export/leads|tenant  CSV export · full JSON backup
     api/nurture/run        cron-able follow-up sender
     api/conversations/*    reply, takeover, outcome
+  components/
+    lead-import.tsx        CSV import control (role-aware)
   lib/
     agent.ts               agent 1: guardrails, slots, scoring, reply composition
     nurture.ts             agent 2: sequences, due computation, delivery
-    ingest.ts              extraction, chunking, topic tagging
+    ingest.ts              extraction, chunking, topic tagging, embedding
     ocr.ts  rawstore.ts    async extraction worker + R2 raw upload store
-    whatsapp.ts            WhatsApp Business Cloud API client
+    whatsapp.ts            WhatsApp Business Cloud API client (outbound)
+    authz.ts  roles.ts     session-pinned tenant guard + permission tiers
+    ratelimit.ts  limits.ts  per-IP windows + per-tenant plan caps
+    embed.ts  retrieval.ts embeddings + hybrid ranking
+    notify.ts              hot-lead alerts (Knock + audit)
     repo.ts                Repo interface, demo store, backend resolution
     repo-d1.ts             Cloudflare D1 adapter
     repo-supabase.ts       Supabase adapter
 tests/                     node:test suites (agent, whatsapp)
+.github/workflows/         scheduled-jobs.yml — nurture + OCR every 15 min
 sites/d1-schema.sql        D1 schema
 supabase/migrations/       Supabase schema
 ```
 
 ### Known limitations
 
-- The inbound WhatsApp webhook (replies, delivery receipts) is not wired.
-- OCR needs a provider key; without one, unextractable documents end as
-  `failed` rather than being retried.
+- The inbound WhatsApp webhook needs a **public HTTPS origin** plus Meta app
+  registration (callback URL, verify token, subscribed fields) — the code is
+  in, the wiring is done in Meta's dashboard.
+- Rate limits are per-isolate and in-memory: a brake against bursts, not a
+  distributed wall. The auth layer and Meta's signature check remain the
+  security boundary.
+- Chunks created before embeddings were enabled have no vector until
+  re-indexed; retrieval then serves them keyword-only.
 - Supabase and the demo store never share data with D1 — pick one backend.
-- No automated tests for ingestion, nurture scheduling or the D1 adapter.
+- No automated tests for ingestion, nurture scheduling, the webhook or the
+  D1 adapter (they are exercised by live smoke tests instead).

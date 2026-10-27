@@ -1,9 +1,11 @@
 "use client";
 
 import { useState } from "react";
-import type { AgentSettings, NurtureSequence } from "@/lib/types";
+import type { AgentSettings, NurtureSequence, Role } from "@/lib/types";
+import { can } from "@/lib/roles";
 
-export function RulesClient({ initial }: { initial: AgentSettings }) {
+export function RulesClient({ initial, role }: { initial: AgentSettings; role: Role }) {
+  const canManage = can(role, "manage");
   const [s, setS] = useState<AgentSettings>(initial);
   const [busy, setBusy] = useState(false);
   const [saved, setSaved] = useState(false);
@@ -131,10 +133,11 @@ export function RulesClient({ initial }: { initial: AgentSettings }) {
       </div>
 
       <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
-        <button className="tines-button tines-button-solid" onClick={save} disabled={busy}>
+        <button className="tines-button tines-button-solid" onClick={save} disabled={busy || !canManage}>
           {busy ? "Saving…" : "Save rules"}
         </button>
         {saved && <span className="pill pill-ok">Saved</span>}
+        {!canManage && <span className="hint">Only admins and owners can change agent rules.</span>}
       </div>
     </div>
   );

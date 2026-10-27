@@ -52,6 +52,9 @@ class MemoryRepo implements Repo {
   async getTenant(id: string) {
     return this.tenants.find((t) => t.id === id) ?? null;
   }
+  async listTenants() {
+    return [...this.tenants];
+  }
   async upsertTenant(t: Tenant) {
     this.tenants.push(t);
     return t;
@@ -77,6 +80,11 @@ class MemoryRepo implements Repo {
       (d) => !(d.id === docId && d.tenantId === tenantId),
     );
     this.chunks = this.chunks.filter((c) => c.docId !== docId);
+  }
+  async listChunks(tenantId: string, docId: string, limit = 100) {
+    return this.chunks
+      .filter((c) => c.tenantId === tenantId && c.docId === docId)
+      .slice(0, limit);
   }
   async searchChunks(tenantId: string, query: string, limit = 4) {
     const terms = tokenize(query);

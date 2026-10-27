@@ -33,7 +33,7 @@ export default async function InboxPage() {
           <div className="sub">Sorted by score and urgency · AI pauses when you take over</div>
         </div>
       </div>
-      <InboxView initialItems={items} tenantId={session.orgId} />
+      <InboxView initialItems={items} tenantId={session.orgId} role={session.role} />
     </>
   );
 }

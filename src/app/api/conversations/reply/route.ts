@@ -1,9 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getRepo, uid } from "@/lib/repo";
+import { requireTenant } from "@/lib/authz";
 
 export async function POST(req: NextRequest) {
-  const { tenantId, conversationId, content, approved } = await req.json();
+  const { tenantId: requested, conversationId, content, approved } = await req.json();
   if (!content?.trim()) return NextResponse.json({ error: "content required" }, { status: 400 });
+  const auth = await requireTenant(requested, "write");
+  if (!auth.ok) return auth.response;
+  const tenantId = auth.tenantId;
   const repo = await getRepo();
   const conv = await repo.getConversation(tenantId, conversationId);
   if (!conv) return NextResponse.json({ error: "not found" }, { status: 404 });

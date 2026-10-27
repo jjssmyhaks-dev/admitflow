@@ -1,0 +1,41 @@
+# Unattended background jobs for AdmitFlow.
+
+#
+# Setup (once, in the GitHub repo settings):
+#   Settings → Secrets and variables → Actions
+#     secret  CRON_SECRET  — the same value as the Sites/CRN secret
+#                            (see .secrets/cron-secret.txt in this repo)
+#     variable APP_URL     — the production origin, e.g.
+#                            https://admitflow.example.workers.dev
+#
+# Both endpoints also accept an admin session, so you can run them
+# by hand from the console when you ever want to disable this workflow:
+#   /api/nurture/run     → Agent rules / Nurture → "Run nurture now"
+#   /api/knowledge/ocr   → Agent rules / Knowledge → "Re-index now"
+name: Scheduled jobs
+
+on:
+  schedule:
+    # Every 15 minutes: nurture follow-ups + OCR/extraction retries.
+    - cron: "*/15 * * * *"
+  workflow_dispatch: {}
+
+concurrency:
+  group: scheduled-jobs
+  cancel-in-progress: false
+
+jobs:
+  nurture-and-ocr:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Nurture follow-ups (every tenant)
+        run: |
+          curl -fsS -X POST \
+            -H "x-cron-secret: ${{ secrets.CRON_SECRET }}" \
+            "${{ vars.APP_URL }}/api/nurture/run"
+
+      - name: OCR / async extraction sweep (every tenant)
+        run: |
+          curl -fsS -X POST \
+            -H "x-cron-secret: ${{ secrets.CRON_SECRET }}" \
+            "${{ vars.APP_URL }}/api/knowledge/ocr"

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { getRepo, uid } from "@/lib/repo";
+import { requireTenant } from "@/lib/authz";
 
 const Profile = z.object({
   id: z.string().min(1),
@@ -15,6 +16,8 @@ const Profile = z.object({
 export async function POST(req: NextRequest) {
   const parsed = Profile.safeParse(await req.json().catch(() => null));
   if (!parsed.success) return NextResponse.json({ error: parsed.error.flatten() }, { status: 400 });
+  const auth = await requireTenant(parsed.data.id, "manage");
+  if (!auth.ok) return auth.response;
   const repo = await getRepo();
   const existing = await repo.getTenant(parsed.data.id);
   const slug =

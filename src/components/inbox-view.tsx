@@ -1,8 +1,9 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import type { Conversation, Lead } from "@/lib/types";
+import type { Conversation, Lead, Role } from "@/lib/types";
 import { fmtDateTime } from "@/lib/format";
+import { can } from "@/lib/roles";
 
 export interface InboxItem {
   conversation: Conversation;
@@ -32,7 +33,8 @@ const OUTCOMES: { value: Lead["status"]; label: string }[] = [
 
 const TIER_ORDER: Record<string, number> = { hot: 0, warm: 1, cold: 2 };
 
-export function InboxView({ initialItems, tenantId }: { initialItems: InboxItem[]; tenantId: string }) {
+export function InboxView({ initialItems, tenantId, role }: { initialItems: InboxItem[]; tenantId: string; role: Role }) {
+  const canWrite = can(role, "write");
   const [items, setItems] = useState<InboxItem[]>(Array.isArray(initialItems) ? initialItems : []);
   const [selectedId, setSelectedId] = useState<string | null>(initialItems[0]?.conversation.id ?? null);
   const [thread, setThread] = useState<ThreadMsg[]>([]);
@@ -188,7 +190,7 @@ export function InboxView({ initialItems, tenantId }: { initialItems: InboxItem[
               </div>
               <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
                 {selected.conversation.status === "ai" ? (
-                  <button className="tines-button tines-button-outline" disabled={busy} onClick={takeOver}>
+                  <button className="tines-button tines-button-outline" disabled={busy || !canWrite} onClick={takeOver}>
                     Take over
                   </button>
                 ) : (
@@ -222,7 +224,7 @@ export function InboxView({ initialItems, tenantId }: { initialItems: InboxItem[
                   <span style={{ fontSize: 12.5, color: "var(--muted-foreground)", flex: 1, minWidth: 180 }}>
                     Suggested reply: “{aiSuggestion.slice(0, 90)}…”
                   </span>
-                  <button className="tines-button tines-button-solid" disabled={busy} onClick={approveReply}>
+                  <button className="tines-button tines-button-solid" disabled={busy || !canWrite} onClick={approveReply}>
                     Approve suggested reply
                   </button>
                 </div>
@@ -230,12 +232,13 @@ export function InboxView({ initialItems, tenantId }: { initialItems: InboxItem[
               <div style={{ display: "flex", gap: 8 }}>
                 <input
                   className="input"
-                  placeholder="Type a reply as counselor…"
+                  placeholder={canWrite ? "Type a reply as counselor…" : "Your role is read-only"}
                   value={draft}
                   onChange={(e) => setDraft(e.target.value)}
-                  onKeyDown={(e) => e.key === "Enter" && sendReply()}
+                  onKeyDown={(e) => e.key === "Enter" && canWrite && sendReply()}
+                  disabled={!canWrite}
                 />
-                <button className="tines-button tines-button-solid" disabled={busy || !draft.trim()} onClick={sendReply}>
+                <button className="tines-button tines-button-solid" disabled={busy || !draft.trim() || !canWrite} onClick={sendReply}>
                   Send
                 </button>
               </div>
@@ -245,7 +248,7 @@ export function InboxView({ initialItems, tenantId }: { initialItems: InboxItem[
                   <button
                     key={o.value}
                     className="step-chip"
-                    disabled={busy}
+                    disabled={busy || !canWrite}
                     style={{ cursor: "pointer" }}
                     onClick={() => markOutcome(o.value)}
                   >
