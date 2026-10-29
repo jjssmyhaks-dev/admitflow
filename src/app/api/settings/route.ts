@@ -22,6 +22,12 @@ const SettingsSchema = z.object({
   ),
 });
 
+export async function GET() {
+  const auth = await requireTenant("", "manage");
+  if (!auth.ok) return auth.response;
+  return NextResponse.json({ settings: {} }, { status: 200 });
+}
+
 export async function POST(req: NextRequest) {
   const parsed = SettingsSchema.safeParse(await req.json().catch(() => null));
   if (!parsed.success) return NextResponse.json({ error: parsed.error.flatten() }, { status: 400 });

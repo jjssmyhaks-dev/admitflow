@@ -13,6 +13,12 @@ const Profile = z.object({
   languages: z.array(z.string()),
 });
 
+export async function GET() {
+  const auth = await requireTenant("", "manage");
+  if (!auth.ok) return auth.response;
+  return NextResponse.json({ tenant: {} }, { status: 200 });
+}
+
 export async function POST(req: NextRequest) {
   const parsed = Profile.safeParse(await req.json().catch(() => null));
   if (!parsed.success) return NextResponse.json({ error: parsed.error.flatten() }, { status: 400 });
