@@ -1,0 +1,196 @@
+﻿Diagnose log at 2026-10-29T07:40:31Z
+
+AppPath: C:\Users\Ashif\AppData\Local\Programs\@codebufffreebuff-desktop\resources\git\ucrt64\bin\git-credential-manager.exe
+InstallDir: C:\Users\Ashif\AppData\Local\Programs\@codebufffreebuff-desktop\resources\git\ucrt64\bin\
+Version: 2.9.1+6760f0ef069c994aa2bb1d703fb374986ee82a3e
+
+------------
+Diagnostic: Environment
+Skipped: False
+Success: True
+Exception: None
+Log:
+OSType: Windows
+OSVersion: 10.0 (build 19045)
+Reading environment variables... OK
+ Variables:
+FREEBUFF_DESKTOP_STATE_PATH=C:\Users\Ashif\.config\freebuff-desktop\state.json
+ProgramFiles(x86)=C:\Program Files (x86)
+MSYSTEM=UCRT64
+ProgramW6432=C:\Program Files
+EXEPATH=C:\Users\Ashif\AppData\Local\Programs\@codebufffreebuff-desktop\resources\git\bin
+PROCESSOR_IDENTIFIER=Intel64 Family 6 Model 61 Stepping 4, GenuineIntel
+FREEBUFF_SIGNING_STATE=not-applicable
+PROCESSOR_ARCHITECTURE=AMD64
+SYSTEMROOT=C:\Windows
+PATHEXT=.COM;.EXE;.BAT;.CMD;.VBS;.VBE;.JS;.JSE;.WSF;.WSH;.MSC
+COMPUTERNAME=DELL
+USERPROFILE=C:\Users\Ashif
+PWD=D:/admission
+LOCALAPPDATA=C:\Users\Ashif\AppData\Local
+PROCESSOR_REVISION=3d04
+OLDPWD=D:/admission
+TEMP=C:\Users\Ashif\AppData\Local\Temp
+FPS_BROWSER_APP_PROFILE_STRING=Internet Explorer
+FPS_BROWSER_USER_PROFILE_STRING=Default
+LOGONSERVER=\\DELL
+TERM=xterm-256color
+USERNAME=Ashif
+PORT=0
+PLINK_PROTOCOL=ssh
+COMMONPROGRAMFILES=C:\Program Files\Common Files
+_=C:/Users/Ashif/AppData/Local/Programs/@codebufffreebuff-desktop/resources/git/usr/bin/timeout
+NoDefaultCurrentDirectoryInExePath=1
+HERMES_HOME=C:\Users\Ashif\AppData\Local\hermes
+PATH=C:\Users\Ashif\AppData\Local\Programs\@codebufffreebuff-desktop\resources\git\ucrt64\bin;C:\Users\Ashif\AppData\Local\Programs\@codebufffreebuff-desktop\resources\git\usr\bin;C:\Users\Ashif\bin;C:\Windows\system32;C:\Windows;C:\Windows\System32\Wbem;C:\Windows\System32\WindowsPowerShell\v1.0;C:\Windows\System32\OpenSSH;C:\Program Files\nodejs;C:\Program Files\Docker\Docker\resources\bin;C:\Program Files\GitHub CLI;C:\Program Files\Redis;C:\Program Files\WSL;C:\Users\Ashif\AppData\Local\Programs\Python\Python312\Scripts;C:\Users\Ashif\AppData\Local\Programs\Python\Python312;C:\Users\Ashif\AppData\Local\Programs\Python\Launcher;C:\Users\Ashif\AppData\Local\hermes\hermes-agent\venv\Scripts;C:\Users\Ashif\AppData\Local\hermes\bin;C:\Users\Ashif\AppData\Local\Microsoft\WindowsApps;C:\Users\Ashif\AppData\Local\Programs\Ollama;C:\Users\Ashif\AppData\Local\hermes\git\cmd;C:\Users\Ashif\AppData\Local\hermes\git\bin;C:\Users\Ashif\AppData\Local\hermes\git\usr\bin;C:\Users\Ashif\AppData\Local\hermes\node;C:\Users\Ashif\AppData\Local\Microsoft\WinGet\Packages\BurntSushi.ripgrep.MSVC_Microsoft.Winget.Source_8wekyb3d8bbwe\ripgrep-15.1.0-x86_64-pc-windows-msvc;C:\Users\Ashif\AppData\Local\Microsoft\WinGet\Packages\Gyan.FFmpeg_Microsoft.Winget.Source_8wekyb3d8bbwe\ffmpeg-8.1.1-full_build\bin;C:\Users\Ashif\AppData\Roaming\npm;C:\Users\Ashif\AppData\Local\GitHubDesktop\bin;C:\Users\Ashif\AppData\Local\Programs\cursor\resources\app\bin;C:\Users\Ashif\AppData\Local\Programs\Microsoft VS Code\bin;C:\Program Files\New Relic\New Relic CLI
+CommonProgramFiles(x86)=C:\Program Files (x86)\Common Files
+CODEBUFF_WASM_DIR=C:\Users\Ashif\AppData\Local\Programs\@codebufffreebuff-desktop\resources\orchestrator\wasm
+ProgramData=C:\ProgramData
+HOMEPATH=\Users\Ashif
+FREEBUFF_APP_VERSION=0.0.192
+WINDIR=C:\Windows
+CODEBUFF_TREE_SITTER_WASM_PATH=C:\Users\Ashif\AppData\Local\Programs\@codebufffreebuff-desktop\resources\orchestrator\wasm\tree-sitter.wasm
+USERDOMAIN=DELL
+ALLUSERSPROFILE=C:\ProgramData
+FREEBUFF_UI_DIR=C:\Users\Ashif\AppData\Local\Programs\@codebufffreebuff-desktop\resources\orchestrator\ui
+TMP=C:\Users\Ashif\AppData\Local\Temp
+PROGRAMFILES=C:\Program Files
+SHLVL=1
+SESSIONNAME=Console
+DriverData=C:\Windows\System32\Drivers\DriverData
+HOMEDRIVE=C:
+GIT_TRACE2_PARENT_SID=4ad0478d-6721-456e-852e-43d426b31814
+NUMBER_OF_PROCESSORS=4
+OS=Windows_NT
+ORIGINAL_XDG_CURRENT_DESKTOP=undefined
+SYSTEMDRIVE=C:
+FREEBUFF_GIT_DIR=C:\Users\Ashif\AppData\Local\Programs\@codebufffreebuff-desktop\resources\git
+HOME=C:\Users\Ashif
+PSModulePath=C:\Program Files\WindowsPowerShell\Modules;C:\Windows\system32\WindowsPowerShell\v1.0\Modules
+APPDATA=C:\Users\Ashif\AppData\Roaming
+OneDrive=C:\Users\Ashif\OneDrive
+PROCESSOR_LEVEL=6
+COMSPEC=C:\Windows\system32\cmd.exe
+CommonProgramW6432=C:\Program Files\Common Files
+MSYS=disable_pcon
+FREEBUFF_PROFILE_LOCK_WAIT_MS=10000
+HERMES_GIT_BASH_PATH=C:\Users\Ashif\AppData\Local\hermes\git\bin\bash.exe
+USERDOMAIN_ROAMINGPROFILE=DELL
+PUBLIC=C:\Users\Public
+
+
+------------
+Diagnostic: File system
+Skipped: False
+Success: True
+Exception: None
+Log:
+Temporary directory is 'C:\Users\Ashif\AppData\Local\Temp\'...
+Checking basic file I/O...
+Writing to temporary file 'C:\Users\Ashif\AppData\Local\Temp\10bc4881ba41c02d42ffc040'... OK
+Reading from temporary file 'C:\Users\Ashif\AppData\Local\Temp\10bc4881ba41c02d42ffc040'... OK
+Deleting temporary file 'C:\Users\Ashif\AppData\Local\Temp\10bc4881ba41c02d42ffc040'... OK
+Testing IFileSystem instance...
+UserHomePath: C:\Users\Ashif
+UserDataDirectoryPath: C:\Users\Ashif\.gcm
+GetCurrentDirectory(): D:\admission
+
+------------
+Diagnostic: Networking
+Skipped: False
+Success: True
+Exception: None
+Log:
+Checking networking and HTTP stack...
+Creating HTTP client... OK
+IsNetworkAvailable: True
+Sending HEAD request to http://example.com... OK
+Sending HEAD request to https://example.com... OK
+Acquiring free TCP port... OK
+Testing local HTTP loopback connections...
+Creating new HTTP listener for http://localhost:53488/... OK
+Waiting for loopback connection... OK
+Writing response... OK
+Waiting for response data... OK
+Loopback connection data OK
+
+------------
+Diagnostic: Git
+Skipped: False
+Success: True
+Exception: None
+Log:
+Getting Git version... OK
+Git version is '2.56.0.windows.2'
+Locating current repository...Git repository at 'D:/admission/.git'
+ OK
+Listing all Git configuration... OK
+Git configuration:
+file:C:/Users/Ashif/AppData/Local/Programs/@codebufffreebuff-desktop/resources/git/etc/gitconfig	core.symlinks=false
+file:C:/Users/Ashif/AppData/Local/Programs/@codebufffreebuff-desktop/resources/git/etc/gitconfig	core.autocrlf=true
+file:C:/Users/Ashif/AppData/Local/Programs/@codebufffreebuff-desktop/resources/git/etc/gitconfig	color.interactive=true
+file:C:/Users/Ashif/AppData/Local/Programs/@codebufffreebuff-desktop/resources/git/etc/gitconfig	color.ui=auto
+file:C:/Users/Ashif/AppData/Local/Programs/@codebufffreebuff-desktop/resources/git/etc/gitconfig	pack.packsizelimit=2g
+file:C:/Users/Ashif/AppData/Local/Programs/@codebufffreebuff-desktop/resources/git/etc/gitconfig	help.format=html
+file:C:/Users/Ashif/AppData/Local/Programs/@codebufffreebuff-desktop/resources/git/etc/gitconfig	diff.astextplain.textconv=astextplain
+file:C:/Users/Ashif/AppData/Local/Programs/@codebufffreebuff-desktop/resources/git/etc/gitconfig	rebase.autosquash=true
+file:C:/Users/Ashif/AppData/Local/Programs/@codebufffreebuff-desktop/resources/git/etc/gitconfig	filter.lfs.clean=git-lfs clean -- %f
+file:C:/Users/Ashif/AppData/Local/Programs/@codebufffreebuff-desktop/resources/git/etc/gitconfig	filter.lfs.smudge=git-lfs smudge -- %f
+file:C:/Users/Ashif/AppData/Local/Programs/@codebufffreebuff-desktop/resources/git/etc/gitconfig	filter.lfs.process=git-lfs filter-process
+file:C:/Users/Ashif/AppData/Local/Programs/@codebufffreebuff-desktop/resources/git/etc/gitconfig	filter.lfs.required=true
+file:C:/Users/Ashif/AppData/Local/Programs/@codebufffreebuff-desktop/resources/git/etc/gitconfig	credential.helper=manager
+file:C:/Users/Ashif/.gitconfig	windows.appendatomically=false
+file:C:/Users/Ashif/.gitconfig	filter.lfs.clean=git-lfs clean -- %f
+file:C:/Users/Ashif/.gitconfig	filter.lfs.smudge=git-lfs smudge -- %f
+file:C:/Users/Ashif/.gitconfig	filter.lfs.process=git-lfs filter-process
+file:C:/Users/Ashif/.gitconfig	filter.lfs.required=true
+file:C:/Users/Ashif/.gitconfig	user.name=srbsoumya1310-commits
+file:C:/Users/Ashif/.gitconfig	user.email=srbsoumya1310@gmail.com
+file:C:/Users/Ashif/.gitconfig	credential.helper=manager
+file:C:/Users/Ashif/.gitconfig	credential.credentialstore=plaintext
+file:.git/config	core.repositoryformatversion=0
+file:.git/config	core.filemode=false
+file:.git/config	core.bare=false
+file:.git/config	core.logallrefupdates=true
+file:.git/config	core.symlinks=false
+file:.git/config	core.ignorecase=true
+file:.git/config	remote.origin.url=https://github.com/jjssmyhaks-dev/admitflow.git
+file:.git/config	remote.origin.fetch=+refs/heads/*:refs/remotes/origin/*
+file:.git/config	branch.main.remote=origin
+file:.git/config	branch.main.merge=refs/heads/main
+
+
+------------
+Diagnostic: Credential storage
+Skipped: False
+Success: True
+Exception: None
+Log:
+ICredentialStore instance is of type: CredentialStore
+Writing test credential... OK
+Reading test credential... OK
+Deleting test credential... OK
+
+------------
+Diagnostic: Microsoft authentication (AAD/MSA)
+Skipped: False
+Success: True
+Exception: None
+Log:
+Broker is not enabled.
+Gathering MSAL token cache data... OK
+CacheDirectory: C:\Users\Ashif\AppData\Local\.IdentityService
+CacheFileName: msal.cache
+CacheFilePath: C:\Users\Ashif\AppData\Local\.IdentityService\msal.cache
+Creating cache helper... OK
+Verifying MSAL token cache persistence... OK
+
+------------
+Diagnostic: GitHub API
+Skipped: False
+Success: True
+Exception: None
+Log:
+Using 'https://github.com/' as API target.
+Querying '/meta' endpoint... OK
+
